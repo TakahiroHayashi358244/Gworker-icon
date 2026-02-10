@@ -303,7 +303,7 @@
     };
   });
 
-  var slideDur = 1200;
+  var slideDur = 2000;
   var startTime = null;
   var phase = 'slide';
 
@@ -381,63 +381,221 @@
     return pts;
   }
 
-  var borderPts = roundedRectPoints(rL, rT, rW, rH, bR, 800);
-
-  var introDots = borderPts.map(function(p){
-    var angle = Math.random() * Math.PI * 2;
-    var dist = Math.max(vw, vh) * (0.3 + Math.random() * 0.7);
-    return {
-      sx: vw/2 + Math.cos(angle) * dist,
-      sy: vh/2 + Math.sin(angle) * dist,
-      tx: p.x, ty: p.y,
-      size: 0.8 + Math.random() * 0.7,
-      delay: Math.random() * 0.4
-    };
-  });
-
-  var introDur = 1800;
-  var introHold = 300;
-  var introReveal = 1000;
+  var sparkDur = 6000;
+  var introHold = 700;
+  var introReveal = 2000;
   var introStart = null;
-  var introPhase = 'converge';
+  var introPhase = 'spark';
 
   function easeOutQuart(t){ return 1 - Math.pow(1-t, 4); }
+  function easeInOutCubic(t){ return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
+
+  var perimPts = roundedRectPoints(rL, rT, rW, rH, bR, 1000);
+
+  // spark particles: born at center, explode outward, then converge to border
+  var sparkCount = 2000;
+  var sparkParticles = [];
+  for(var i = 0; i < sparkCount; i++){
+    var angle = Math.random() * Math.PI * 2;
+    var dist = 50 + Math.pow(Math.random(), 0.5) * Math.max(vw, vh) * 0.7;
+    var borderIdx = Math.floor((i / sparkCount) * perimPts.length);
+    var bp = perimPts[borderIdx];
+    sparkParticles.push({
+      angle: angle,
+      dist: dist,
+      scatterX: vw/2 + Math.cos(angle) * dist,
+      scatterY: vh/2 + Math.sin(angle) * dist,
+      borderX: bp.x,
+      borderY: bp.y,
+      size: 0.5 + Math.random() * 0.7,
+      delay: Math.random() * 0.1
+    });
+  }
 
   function introAnimate(ts){
     if(!introStart) introStart = ts;
     var el = ts - introStart;
 
-    if(introPhase === 'converge'){
-      // draw dots moving toward border
+    if(introPhase === 'spark'){
+      var t = el / sparkDur;
+      if(t > 1) t = 1;
+
       ictx.clearRect(0,0,vw,vh);
       ictx.fillStyle = '#000000';
       ictx.fillRect(0,0,vw,vh);
 
-      var allDone = true;
-      for(var i = 0; i < introDots.length; i++){
-        var d = introDots[i];
-        var t = Math.max(0, el - d.delay * 1000) / introDur;
-        if(t > 1) t = 1; else allDone = false;
-        var e = easeOutQuart(t);
-        var cx = d.sx + (d.tx - d.sx) * e;
-        var cy = d.sy + (d.ty - d.sy) * e;
-        var alpha = Math.min(1, t * 2.5);
-        // trail effect
-        var trail = Math.min(t * 1.5, 1);
-        if(trail < 1){
-          var mx = d.sx + (d.tx - d.sx) * (e * 0.7);
-          var my = d.sy + (d.ty - d.sy) * (e * 0.7);
+      if(t < 0.2){
+        // Phase A: single dot appears at center (longer)
+        var p = t / 0.2;
+        var ease = easeOutQuart(p);
+        var dotSize = 1 + ease * 5;
+        ictx.save();
+        ictx.shadowColor = 'rgba(232,216,48,' + (ease * 0.9) + ')';
+        ictx.shadowBlur = 10 + ease * 30;
+        ictx.beginPath();
+        ictx.arc(vw/2, vh/2, dotSize, 0, Math.PI*2);
+        ictx.fillStyle = 'rgba(232,216,48,' + (0.5 + ease * 0.5) + ')';
+        ictx.fill();
+        // pulsing glow
+        var pulse = Math.sin(p * Math.PI * 3) * 0.3;
+        ictx.shadowBlur = 20 + pulse * 20;
+        ictx.beginPath();
+        ictx.arc(vw/2, vh/2, dotSize * 0.6, 0, Math.PI*2);
+        ictx.fillStyle = 'rgba(232,216,48,' + (0.3 + pulse) + ')';
+        ictx.fill();
+        ictx.restore();
+
+      } else if(t < 0.5){
+        // Phase B: burst - particles explode outward from center
+        var p = (t - 0.2) / 0.3;
+        var ease = easeOutQuart(p);
+
+        for(var i = 0; i < sparkParticles.length; i++){
+          var sp = sparkParticles[i];
+          var cx = vw/2 + (sp.scatterX - vw/2) * ease;
+          var cy = vh/2 + (sp.scatterY - vh/2) * ease;
+          var alpha = Math.max(0.2, 1 - p * 0.5);
+
+          // trail
+          if(p < 0.7){
+            var tp = ease * 0.6;
+            var tx = vw/2 + (sp.scatterX - vw/2) * tp;
+            var ty = vh/2 + (sp.scatterY - vh/2) * tp;
+            ictx.beginPath();
+            ictx.arc(tx, ty, sp.size * 0.4, 0, Math.PI*2);
+            ictx.fillStyle = 'rgba(232,216,48,' + (alpha * 0.2) + ')';
+            ictx.fill();
+          }
+
           ictx.beginPath();
-          ictx.arc(mx, my, d.size * 0.5, 0, Math.PI*2);
-          ictx.fillStyle = 'rgba(232,216,48,' + (alpha * 0.3) + ')';
+          ictx.arc(cx, cy, sp.size, 0, Math.PI*2);
+          ictx.fillStyle = 'rgba(232,216,48,' + alpha + ')';
           ictx.fill();
         }
-        ictx.beginPath();
-        ictx.arc(cx, cy, d.size, 0, Math.PI*2);
-        ictx.fillStyle = 'rgba(232,216,48,' + alpha + ')';
-        ictx.fill();
+
+        // fading center flash
+        if(p < 0.3){
+          var flashAlpha = (1 - p / 0.3) * 0.6;
+          ictx.save();
+          ictx.shadowColor = 'rgba(232,216,48,' + flashAlpha + ')';
+          ictx.shadowBlur = 40;
+          ictx.beginPath();
+          ictx.arc(vw/2, vh/2, 3 * (1 - p/0.3), 0, Math.PI*2);
+          ictx.fillStyle = 'rgba(232,216,48,' + flashAlpha + ')';
+          ictx.fill();
+          ictx.restore();
+        }
+
+      } else {
+        // Phase C: right twist -> re-scatter -> left rotation forming border
+        var p = (t - 0.5) / 0.5;
+
+        var rectCx = rL + rW / 2;
+        var rectCy = rT + rH / 2;
+
+        if(p < 0.3){
+          // C-1: right twist (clockwise), particles gather into a circle
+          var pp = p / 0.3;
+          var ease = easeOutQuart(pp);
+          var circleRadius = Math.min(rW, rH) * 0.03;
+
+          for(var i = 0; i < sparkParticles.length; i++){
+            var sp = sparkParticles[i];
+            var dx = sp.scatterX - rectCx;
+            var dy = sp.scatterY - rectCy;
+            var dist = Math.sqrt(dx*dx + dy*dy);
+            var angle = Math.atan2(dy, dx);
+            // twist right and converge to circle
+            var twistAngle = angle + ease * Math.PI * 0.8;
+            // target: filled circle with dense center
+            var circleAngle = Math.random() * Math.PI * 2;
+            var targetDist = Math.pow(Math.random(), 0.3) * circleRadius;
+            var targetX = rectCx + Math.cos(circleAngle) * targetDist;
+            var targetY = rectCy + Math.sin(circleAngle) * targetDist;
+            // current spinning position
+            var spinX = rectCx + Math.cos(twistAngle) * dist * (1 - ease * 0.7);
+            var spinY = rectCy + Math.sin(twistAngle) * dist * (1 - ease * 0.7);
+            // blend toward circle
+            var cx = spinX + (targetX - spinX) * ease;
+            var cy = spinY + (targetY - spinY) * ease;
+
+            ictx.beginPath();
+            ictx.arc(cx, cy, sp.size, 0, Math.PI*2);
+            ictx.fillStyle = 'rgba(232,216,48,0.8)';
+            ictx.fill();
+          }
+
+        } else if(p < 0.42){
+          // C-2: re-scatter from circle outward
+          var pp = (p - 0.3) / 0.12;
+          var ease = easeOutQuart(pp);
+          var circleRadius = Math.min(rW, rH) * 0.03;
+
+          for(var i = 0; i < sparkParticles.length; i++){
+            var sp = sparkParticles[i];
+            // circle position (end of C-1)
+            var circleAngle = (i / sparkParticles.length) * Math.PI * 2;
+            var circDist = Math.pow(Math.random(), 0.3) * circleRadius;
+            var circX = rectCx + Math.cos(circleAngle) * circDist;
+            var circY = rectCy + Math.sin(circleAngle) * circDist;
+            // scatter outward
+            var scatterDist = circleRadius + ease * Math.max(vw, vh) * 0.25;
+            sp._reX = rectCx + Math.cos(circleAngle) * scatterDist;
+            sp._reY = rectCy + Math.sin(circleAngle) * scatterDist;
+            var cx = circX + (sp._reX - circX) * ease;
+            var cy = circY + (sp._reY - circY) * ease;
+
+            ictx.beginPath();
+            ictx.arc(cx, cy, sp.size, 0, Math.PI*2);
+            ictx.fillStyle = 'rgba(232,216,48,0.6)';
+            ictx.fill();
+          }
+
+        } else {
+          // C-3: left rotation, gradually collecting into border while spinning
+          var pp = (p - 0.42) / 0.58;
+          var leftRotations = 3;
+          var rotAngle = -pp * Math.PI * 2 * leftRotations;
+          // settle easing: very gradual
+          var settle = pp * pp; // quadratic - slow start
+
+          for(var i = 0; i < sparkParticles.length; i++){
+            var sp = sparkParticles[i];
+            // re-scattered position (if not computed, fallback)
+            var reX = sp._reX || sp.scatterX;
+            var reY = sp._reY || sp.scatterY;
+
+            // border target rotated by current spin angle
+            var bdx = sp.borderX - rectCx;
+            var bdy = sp.borderY - rectCy;
+            var rotBX = rectCx + bdx * Math.cos(rotAngle) - bdy * Math.sin(rotAngle);
+            var rotBY = rectCy + bdx * Math.sin(rotAngle) + bdy * Math.cos(rotAngle);
+
+            // also rotate the re-scatter position
+            var rdx = reX - rectCx;
+            var rdy = reY - rectCy;
+            var rotRX = rectCx + rdx * Math.cos(rotAngle) - rdy * Math.sin(rotAngle);
+            var rotRY = rectCy + rdx * Math.sin(rotAngle) + rdy * Math.cos(rotAngle);
+
+            // blend from spinning re-scatter to spinning border
+            var cx = rotRX + (rotBX - rotRX) * settle;
+            var cy = rotRY + (rotBY - rotRY) * settle;
+            var alpha = 0.5 + settle * 0.5;
+
+            ictx.beginPath();
+            ictx.arc(cx, cy, sp.size, 0, Math.PI*2);
+            ictx.fillStyle = 'rgba(232,216,48,' + alpha + ')';
+            ictx.fill();
+          }
+        }
+
+        // no separate border line - the dots form the border naturally
       }
-      if(allDone){ introPhase = 'hold'; introStart = ts; }
+
+      if(t >= 1){
+        introPhase = 'hold';
+        introStart = ts;
+      }
       requestAnimationFrame(introAnimate);
 
     } else if(introPhase === 'hold'){
