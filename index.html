@@ -26,11 +26,15 @@
   html,body{
     min-height:100%;
     font-family:'Noto Sans JP',sans-serif;
-    background:var(--bg);
+    background:#000000;
     color:var(--text);
     overflow-x:hidden;
     -webkit-tap-highlight-color:transparent;
     user-select:none;
+    transition:background 1.2s ease;
+  }
+  html.bg-light,body.bg-light{
+    background:var(--bg);
   }
 
   .bg-grid{
@@ -75,13 +79,18 @@
   .logo-wrap{
     width:min(80vw,320px);
     height:min(80vw,320px);
-    background:#2a2a32;
+    background:transparent;
     border-radius:16px;
     display:flex;align-items:center;justify-content:center;
     position:relative;overflow:hidden;
-    box-shadow:0 4px 20px rgba(0,0,0,.3);
+    box-shadow:none;
     opacity:0;
     transform:translateY(80px);
+    transition:background .8s ease, box-shadow .8s ease;
+  }
+  .logo-wrap.bg-ready{
+    background:#2a2a32;
+    box-shadow:0 4px 20px rgba(0,0,0,.3);
   }
   .logo-wrap.visible{
     animation:logoAppear 2s cubic-bezier(.22,1,.36,1) forwards;
@@ -193,6 +202,7 @@
 </style>
 </head>
 <body>
+<canvas id="introCanvas" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:100;pointer-events:none"></canvas>
 
 <div class="bg-grid"></div>
 <div class="glow-orb a"></div>
@@ -268,11 +278,11 @@
   logoImg.style.position = 'absolute';
   logoImg.style.top = imgTop + 'px';
   logoImg.style.left = '50%';
-  logoImg.style.transform = 'translateX(-50%) perspective(800px) rotateX(-90deg)';
+  logoImg.style.transform = 'translateX(-300%) translateY(0)';
+  logoImg.style.visibility = 'hidden';
 
-  // transform-origin: ロゴ実描画の下端
-  // CSSのtransform-originはimgの左上基準 → bottom = visBotRatio * 100%
-  logoImg.style.transformOrigin = 'center ' + (visBotRatio * 100) + '%';
+  // transform-origin: center
+  logoImg.style.transformOrigin = 'center center';
 
   // 線の位置 = ロゴ実描画の下端に合わせる
   var lineYActual = visibleBottom;
@@ -294,14 +304,235 @@
     };
   });
 
-  var phase1Dur = 2500;
-  var phase2Dur = 400;
-  var phase3Dur = 4800;
+  var slideDur = 1200;
   var startTime = null;
-  var phase = 'scatter';
+  var phase = 'slide';
 
-  setTimeout(function(){ wrap.classList.add('visible'); }, 100);
-  setTimeout(function(){ requestAnimationFrame(animate); }, 800);
+  setTimeout(function(){ wrap.style.opacity = '0'; wrap.style.transform = 'none'; }, 50);
+
+  // === INTRO: dots form the logo-wrap rectangle border on black screen ===
+  var introCanvas = document.getElementById('introCanvas');
+  var ictx = introCanvas.getContext('2d');
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+  introCanvas.width = vw;
+  introCanvas.height = vh;
+
+  // fill black
+  ictx.fillStyle = '#000000';
+  ictx.fillRect(0, 0, vw, vh);
+
+  // get FINAL position of wrap (with transform reset)
+  setTimeout(function(){
+    var wrapRect = wrap.getBoundingClientRect();
+    var rL = wrapRect.left, rT = wrapRect.top, rW = wrapRect.width, rH = wrapRect.height;
+    var bR = 16;
+    startIntro(rL, rT, rW, rH, bR);
+  }, 100);
+
+  function startIntro(rL, rT, rW, rH, bR){
+
+  // generate points along the rounded rectangle perimeter
+  function roundedRectPoints(x, y, w, h, r, count){
+    var pts = [];
+    // path segments: top, top-right corner, right, bottom-right, bottom, bottom-left, left, top-left
+    var segs = [];
+    // top edge
+    segs.push({type:'line', x1:x+r, y1:y, x2:x+w-r, y2:y});
+    // top-right corner
+    segs.push({type:'arc', cx:x+w-r, cy:y+r, r:r, a1:-Math.PI/2, a2:0});
+    // right edge
+    segs.push({type:'line', x1:x+w, y1:y+r, x2:x+w, y2:y+h-r});
+    // bottom-right corner
+    segs.push({type:'arc', cx:x+w-r, cy:y+h-r, r:r, a1:0, a2:Math.PI/2});
+    // bottom edge
+    segs.push({type:'line', x1:x+w-r, y1:y+h, x2:x+r, y2:y+h});
+    // bottom-left corner
+    segs.push({type:'arc', cx:x+r, cy:y+h-r, r:r, a1:Math.PI/2, a2:Math.PI});
+    // left edge
+    segs.push({type:'line', x1:x, y1:y+h-r, x2:x, y2:y+r});
+    // top-left corner
+    segs.push({type:'arc', cx:x+r, cy:y+r, r:r, a1:Math.PI, a2:Math.PI*1.5});
+
+    // calc total perimeter
+    var lengths = segs.map(function(s){
+      if(s.type==='line') return Math.hypot(s.x2-s.x1, s.y2-s.y1);
+      return Math.abs(s.a2-s.a1)*s.r;
+    });
+    var total = lengths.reduce(function(a,b){return a+b;},0);
+
+    for(var i=0;i<count;i++){
+      var d = (i/count)*total;
+      var acc=0;
+      for(var j=0;j<segs.length;j++){
+        if(acc+lengths[j]>=d){
+          var t=(d-acc)/lengths[j];
+          var s=segs[j];
+          if(s.type==='line'){
+            pts.push({x:s.x1+(s.x2-s.x1)*t, y:s.y1+(s.y2-s.y1)*t});
+          } else {
+            var a=s.a1+(s.a2-s.a1)*t;
+            pts.push({x:s.cx+Math.cos(a)*s.r, y:s.cy+Math.sin(a)*s.r});
+          }
+          break;
+        }
+        acc+=lengths[j];
+      }
+    }
+    return pts;
+  }
+
+  var borderPts = roundedRectPoints(rL, rT, rW, rH, bR, 300);
+
+  var introDots = borderPts.map(function(p){
+    var angle = Math.random() * Math.PI * 2;
+    var dist = Math.max(vw, vh) * (0.3 + Math.random() * 0.7);
+    return {
+      sx: vw/2 + Math.cos(angle) * dist,
+      sy: vh/2 + Math.sin(angle) * dist,
+      tx: p.x, ty: p.y,
+      size: 2 + Math.random() * 2.5,
+      delay: Math.random() * 0.4
+    };
+  });
+
+  var introDur = 1800;
+  var introHold = 300;
+  var introReveal = 1000;
+  var introStart = null;
+  var introPhase = 'converge';
+
+  function easeOutQuart(t){ return 1 - Math.pow(1-t, 4); }
+
+  function introAnimate(ts){
+    if(!introStart) introStart = ts;
+    var el = ts - introStart;
+
+    if(introPhase === 'converge'){
+      // draw dots moving toward border
+      ictx.clearRect(0,0,vw,vh);
+      ictx.fillStyle = '#000000';
+      ictx.fillRect(0,0,vw,vh);
+
+      var allDone = true;
+      for(var i = 0; i < introDots.length; i++){
+        var d = introDots[i];
+        var t = Math.max(0, el - d.delay * 1000) / introDur;
+        if(t > 1) t = 1; else allDone = false;
+        var e = easeOutQuart(t);
+        var cx = d.sx + (d.tx - d.sx) * e;
+        var cy = d.sy + (d.ty - d.sy) * e;
+        var alpha = Math.min(1, t * 2.5);
+        // trail effect
+        var trail = Math.min(t * 1.5, 1);
+        if(trail < 1){
+          var mx = d.sx + (d.tx - d.sx) * (e * 0.7);
+          var my = d.sy + (d.ty - d.sy) * (e * 0.7);
+          ictx.beginPath();
+          ictx.arc(mx, my, d.size * 0.5, 0, Math.PI*2);
+          ictx.fillStyle = 'rgba(255,255,255,' + (alpha * 0.3) + ')';
+          ictx.fill();
+        }
+        ictx.beginPath();
+        ictx.arc(cx, cy, d.size, 0, Math.PI*2);
+        ictx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+        ictx.fill();
+      }
+      if(allDone){ introPhase = 'hold'; introStart = ts; }
+      requestAnimationFrame(introAnimate);
+
+    } else if(introPhase === 'hold'){
+      if(el > introHold){
+        introPhase = 'reveal';
+        introStart = ts;
+      }
+      requestAnimationFrame(introAnimate);
+
+    } else if(introPhase === 'reveal'){
+      var t = el / introReveal;
+      if(t > 1) t = 1;
+
+      ictx.clearRect(0,0,vw,vh);
+
+      // draw white expanding outward from the border, but keep rectangle dark
+      // strategy: fill white, then draw dark rounded rect
+      var expandPx = t * Math.max(vw, vh);
+
+      ictx.fillStyle = '#ffffff';
+      ictx.fillRect(0, 0, vw, vh);
+
+      // dark rounded rectangle (the wrap area) - stays black
+      ictx.beginPath();
+      ictx.moveTo(rL + bR, rT);
+      ictx.lineTo(rL + rW - bR, rT);
+      ictx.arcTo(rL + rW, rT, rL + rW, rT + bR, bR);
+      ictx.lineTo(rL + rW, rT + rH - bR);
+      ictx.arcTo(rL + rW, rT + rH, rL + rW - bR, rT + rH, bR);
+      ictx.lineTo(rL + bR, rT + rH);
+      ictx.arcTo(rL, rT + rH, rL, rT + rH - bR, bR);
+      ictx.lineTo(rL, rT + bR);
+      ictx.arcTo(rL, rT, rL + bR, rT, bR);
+      ictx.closePath();
+      ictx.fillStyle = '#2a2a32';
+      ictx.fill();
+
+      // border glow on rectangle
+      var glowAlpha = 0.5 * (1 - t);
+      ictx.strokeStyle = 'rgba(255,255,255,' + glowAlpha + ')';
+      ictx.lineWidth = 2;
+      ictx.stroke();
+
+      // mask: the area not yet revealed stays black
+      // reveal grows from rectangle outward
+      if(t < 1){
+        // clip outside the expanded region
+        var margin = expandPx;
+        ictx.save();
+        // draw black outside the expanded rect
+        ictx.beginPath();
+        ictx.rect(0, 0, vw, vh);
+        // expanded rounded rect (subtract)
+        var eL = rL - margin, eT = rT - margin, eW = rW + margin*2, eH = rH + margin*2, eR = bR + margin;
+        ictx.moveTo(eL + eR, eT);
+        ictx.lineTo(eL + eW - eR, eT);
+        ictx.arcTo(eL + eW, eT, eL + eW, eT + eR, eR);
+        ictx.lineTo(eL + eW, eT + eH - eR);
+        ictx.arcTo(eL + eW, eT + eH, eL + eW - eR, eT + eH, eR);
+        ictx.lineTo(eL + eR, eT + eH);
+        ictx.arcTo(eL, eT + eH, eL, eT + eH - eR, eR);
+        ictx.lineTo(eL, eT + eR);
+        ictx.arcTo(eL, eT, eL + eR, eT, eR);
+        ictx.closePath();
+        ictx.clip('evenodd');
+        ictx.fillStyle = '#000000';
+        ictx.fillRect(0, 0, vw, vh);
+        ictx.restore();
+      }
+
+      if(t >= 1){
+        // done - switch to real page seamlessly
+        document.documentElement.classList.add('bg-light');
+        document.body.classList.add('bg-light');
+        wrap.classList.add('bg-ready');
+        // show wrap at exact final position (no CSS animation)
+        wrap.style.opacity = '1';
+        wrap.style.transform = 'none';
+
+        introCanvas.style.transition = 'opacity 0.4s';
+        introCanvas.style.opacity = '0';
+        setTimeout(function(){
+          introCanvas.style.display = 'none';
+          startTime = null;
+          requestAnimationFrame(animate);
+        }, 400);
+      } else {
+        requestAnimationFrame(introAnimate);
+      }
+    }
+  }
+
+  setTimeout(function(){ requestAnimationFrame(introAnimate); }, 200);
+  } // end startIntro
 
   function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
   function easeOutBack(t){ var c = 1.2; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }
@@ -310,72 +541,47 @@
     if(!startTime) startTime = ts;
     var elapsed = ts - startTime;
 
-    if(phase === 'scatter'){
-      ctx.clearRect(0, 0, canvasW, canvasH);
-      var allDone = true;
-      for(var i = 0; i < particles.length; i++){
-        var p = particles[i];
-        var t = Math.max(0, elapsed - p.delay * 1000) / phase1Dur;
-        if(t > 1) t = 1;
-        if(t < 1) allDone = false;
-        var ease = easeOutCubic(t);
-        var cx = p.sx + (p.lx - p.sx) * ease;
-        var cy = p.sy + (p.ly - p.sy) * ease;
-        var alpha = Math.min(1, t * 2.5);
-        ctx.beginPath();
-        ctx.arc(cx, cy, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(232,216,48,' + alpha + ')';
-        ctx.fill();
-      }
-      if(allDone){ phase = 'glow'; startTime = ts; }
-      requestAnimationFrame(animate);
-
-    } else if(phase === 'glow'){
-      var t = elapsed / phase2Dur;
+    if(phase === 'slide'){
+      var t = elapsed / slideDur;
       if(t > 1) t = 1;
-      ctx.clearRect(0, 0, canvasW, canvasH);
-      var glowIntensity = Math.sin(t * Math.PI);
 
-      ctx.save();
-      ctx.shadowColor = 'rgba(232,216,48,' + (0.6 * glowIntensity) + ')';
-      ctx.shadowBlur = 20 + 30 * glowIntensity;
-      for(var i = 0; i < particles.length; i++){
-        var p = particles[i];
-        ctx.beginPath();
-        ctx.arc(p.lx, p.ly, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(232,216,48,1)';
-        ctx.fill();
+      logoImg.style.visibility = 'visible';
+      canvas.style.display = 'none';
+
+      // Custom bounce easing: slide from left(-300%) to center(-50%), overshoot right, bounce back
+      // Keyframes: 0->0.5: -300% to -35% (overshoot right by 15%)
+      //            0.5->0.75: -35% to -55% (bounce left past center)
+      //            0.75->1.0: -55% to -50% (settle at center)
+      var tx;
+      if(t < 0.5){
+        // slide in from left, ease out to overshoot
+        var p = t / 0.5;
+        var ease = 1 - Math.pow(1 - p, 3); // easeOutCubic
+        tx = -300 + (300 - 35) * ease; // -300 -> -35
+      } else if(t < 0.75){
+        // bounce back left past center
+        var p = (t - 0.5) / 0.25;
+        var ease = 1 - Math.pow(1 - p, 2); // easeOutQuad
+        tx = -35 + (-55 - (-35)) * ease; // -35 -> -55
+      } else {
+        // settle to center
+        var p = (t - 0.75) / 0.25;
+        var ease = 1 - Math.pow(1 - p, 2);
+        tx = -55 + (-50 - (-55)) * ease; // -55 -> -50
       }
-      ctx.restore();
 
-      ctx.beginPath();
-      ctx.moveTo(lineLeft, lineYActual);
-      ctx.lineTo(lineRight, lineYActual);
-      ctx.strokeStyle = 'rgba(232,216,48,' + (0.4 * glowIntensity) + ')';
-      ctx.lineWidth = 0.5 * scale;
-      ctx.stroke();
-
-      if(t >= 1){
-        phase = 'rise';
-        startTime = ts;
-        logoImg.style.visibility = 'visible';
+      // subtle scale effect during overshoot
+      var sc = 1;
+      if(t >= 0.4 && t < 0.6){
+        var bp = (t - 0.4) / 0.2;
+        sc = 1 + 0.03 * Math.sin(bp * Math.PI);
       }
-      requestAnimationFrame(animate);
 
-    } else if(phase === 'rise'){
-      var t = elapsed / phase3Dur;
-      if(t > 1) t = 1;
-      var ease = easeOutBack(t);
-
-      canvas.style.opacity = Math.max(0, 1 - t * 4).toString();
-
-      var rotX = -90 * (1 - ease);
-      logoImg.style.transform = 'translateX(-50%) perspective(800px) rotateX(' + rotX + 'deg)';
+      logoImg.style.transform = 'translateX(' + tx + '%) scale(' + sc + ')';
 
       if(t >= 1){
         phase = 'done';
-        canvas.style.display = 'none';
-        logoImg.style.transform = 'translateX(-50%) perspective(800px) rotateX(0deg)';
+        logoImg.style.transform = 'translateX(-50%) scale(1)';
 
         document.getElementById('title').classList.add('show');
         document.getElementById('subtitle').classList.add('show');
