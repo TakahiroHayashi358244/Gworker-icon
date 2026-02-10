@@ -166,6 +166,22 @@
   }
   .footer.show{animation:fadeUp .6s ease .6s forwards}
 
+  .scroll-hint{
+    position:absolute;bottom:.3rem;
+    font-size:.6rem;color:var(--text-sub);opacity:0;
+    animation:fadeUp .6s ease 1.2s forwards;
+  }
+
+  .qr-section{
+    min-height:70vh;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:#f8f8f8;padding:2rem;gap:.8rem;
+  }
+  .qr-label{font-size:1rem;font-weight:700;color:#333}
+  #qrCanvas{border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);background:#fff;padding:12px}
+  .qr-url{font-size:.65rem;color:#888;word-break:break-all;text-align:center;max-width:280px}
+  .qr-note{font-size:.75rem;color:#666;text-align:center}
+
   @media (orientation:landscape) and (max-height:500px){
     .container{gap:.6rem;padding:1rem}
     .logo-wrap{width:min(50vw,240px);height:min(50vw,240px)}
@@ -194,6 +210,14 @@
     </a>
   </div>
   <div class="footer" id="footer">© Gworker LLC</div>
+  <div class="scroll-hint" id="scrollHint">↓ QRコード</div>
+</div>
+
+<div class="qr-section" id="qrSection">
+  <div class="qr-label">このページのQRコード</div>
+  <canvas id="qrCanvas"></canvas>
+  <div class="qr-url" id="qrUrl"></div>
+  <div class="qr-note">スマホのカメラで読み取ってホーム画面に追加</div>
 </div>
 
 <script>
@@ -360,6 +384,27 @@
       requestAnimationFrame(animate);
     }
   }
+})();
+
+// QR Code generation
+(function(){
+  var url = location.href.replace(/\/$/,'');
+  document.getElementById('qrUrl').textContent = url;
+
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
+  s.onload = function(){
+    new QRious({
+      element: document.getElementById('qrCanvas'),
+      value: url,
+      size: 200,
+      backgroundAlpha: 1,
+      foreground: '#333333',
+      background: '#ffffff',
+      level: 'M'
+    });
+  };
+  document.head.appendChild(s);
 })();
 </script>
 
