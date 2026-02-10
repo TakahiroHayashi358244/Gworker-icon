@@ -1,10 +1,6 @@
 {
   "name": "TPB2 休日予定入力",
-  "short_name": "TPB2休日予定",
-  "start_url": ".",
-  "display": "standalone",
-  "background_color": "#1e1e28",
-  "theme_color": "#e8d830",
+  "short_name": "TPB2",
   "icons": [
     {
       "src": "apple-touch-icon.png",
@@ -21,5 +17,9 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#2a2a32"
 }
