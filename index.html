@@ -381,7 +381,7 @@
     return pts;
   }
 
-  var borderPts = roundedRectPoints(rL, rT, rW, rH, bR, 300);
+  var borderPts = roundedRectPoints(rL, rT, rW, rH, bR, 800);
 
   var introDots = borderPts.map(function(p){
     var angle = Math.random() * Math.PI * 2;
@@ -390,7 +390,7 @@
       sx: vw/2 + Math.cos(angle) * dist,
       sy: vh/2 + Math.sin(angle) * dist,
       tx: p.x, ty: p.y,
-      size: 2 + Math.random() * 2.5,
+      size: 0.8 + Math.random() * 0.7,
       delay: Math.random() * 0.4
     };
   });
@@ -429,12 +429,12 @@
           var my = d.sy + (d.ty - d.sy) * (e * 0.7);
           ictx.beginPath();
           ictx.arc(mx, my, d.size * 0.5, 0, Math.PI*2);
-          ictx.fillStyle = 'rgba(255,255,255,' + (alpha * 0.3) + ')';
+          ictx.fillStyle = 'rgba(232,216,48,' + (alpha * 0.3) + ')';
           ictx.fill();
         }
         ictx.beginPath();
         ictx.arc(cx, cy, d.size, 0, Math.PI*2);
-        ictx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+        ictx.fillStyle = 'rgba(232,216,48,' + alpha + ')';
         ictx.fill();
       }
       if(allDone){ introPhase = 'hold'; introStart = ts; }
@@ -477,7 +477,7 @@
 
       // border glow on rectangle
       var glowAlpha = 0.5 * (1 - t);
-      ictx.strokeStyle = 'rgba(255,255,255,' + glowAlpha + ')';
+      ictx.strokeStyle = 'rgba(232,216,48,' + glowAlpha + ')';
       ictx.lineWidth = 2;
       ictx.stroke();
 
