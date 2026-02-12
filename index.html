@@ -777,7 +777,13 @@
 
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(function(){});
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js').then(function(reg) {
+      console.log('SW registered:', reg.scope);
+    }).catch(function(err) {
+      console.log('SW registration failed:', err);
+    });
+  });
 }
 </script>
 </body>
