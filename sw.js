@@ -1,15 +1,14 @@
 // Service Worker for TPB2 PWA
-var CACHE_NAME = 'tpb2-cache-v1';
+var CACHE_NAME = 'tpb2-cache-v2';
 var urlsToCache = [
   './',
-  './index.html',
+  './manifest.json',
   './apple-touch-icon.png',
   './icon-192.png',
-  './icon-512.png',
-  './manifest.json'
+  './icon-512.png'
 ];
 
-// インストール時にキャッシュ
+// インストール
 self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
@@ -19,7 +18,7 @@ self.addEventListener('install', function(event) {
   self.skipWaiting();
 });
 
-// 古いキャッシュの削除
+// アクティベート - 古いキャッシュ削除
 self.addEventListener('activate', function(event) {
   event.waitUntil(
     caches.keys().then(function(cacheNames) {
@@ -35,12 +34,11 @@ self.addEventListener('activate', function(event) {
   self.clients.claim();
 });
 
-// ネットワーク優先、失敗時はキャッシュ
+// フェッチ - ネットワーク優先
 self.addEventListener('fetch', function(event) {
   event.respondWith(
     fetch(event.request).then(function(response) {
-      // 成功したらキャッシュを更新
-      if (response && response.status === 200) {
+      if (response && response.status === 200 && response.type === 'basic') {
         var responseClone = response.clone();
         caches.open(CACHE_NAME).then(function(cache) {
           cache.put(event.request, responseClone);
@@ -48,7 +46,6 @@ self.addEventListener('fetch', function(event) {
       }
       return response;
     }).catch(function() {
-      // オフライン時はキャッシュから返す
       return caches.match(event.request);
     })
   );
